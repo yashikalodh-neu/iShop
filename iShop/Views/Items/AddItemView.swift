@@ -13,6 +13,7 @@ struct AddItemView: View {
     @State private var isAvailable = true
     @State private var hasExpirationDate = false
     @State private var expirationDate = Date()
+    @State private var isLowStockAlertEnabled = false
     
     var body: some View {
         NavigationView {
@@ -22,7 +23,13 @@ struct AddItemView: View {
                     
                     Stepper("Quantity: \(quantity)", value: $quantity, in: 1...999)
                     
-                    Stepper("Low Stock Alert: \(quantityThreshold)", value: $quantityThreshold, in: 1...100)
+//                    Stepper("Low Stock Alert: \(quantityThreshold)", value: $quantityThreshold, in: 1...100)
+                    Toggle("Enable Low Stock Alert", isOn: $isLowStockAlertEnabled)
+                                        
+                                        // Show low stock threshold only when the alert is enabled
+                                        if isLowStockAlertEnabled {
+                                            Stepper("Low Stock Alert: \(quantityThreshold)", value: $quantityThreshold, in: 1...100)
+                                        }
                     
                     HStack {
                         Text("Price")

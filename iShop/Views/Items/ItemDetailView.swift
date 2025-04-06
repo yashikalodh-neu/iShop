@@ -12,6 +12,7 @@ struct ItemDetailView: View {
     @State private var price: Double
     @State private var isAvailable: Bool
     @State private var expirationDate: Date?
+    @State private var isLowStockAlertEnabled: Bool
     
     // DateFormatter for display
     private let dateFormatter: DateFormatter = {
@@ -31,6 +32,7 @@ struct ItemDetailView: View {
         _price = State(initialValue: item.price)
         _isAvailable = State(initialValue: item.isAvailable)
         _expirationDate = State(initialValue: item.expirationDate)
+        _isLowStockAlertEnabled = State(initialValue: item.quantityThreshold > 0)
     }
     
     var body: some View {
@@ -40,8 +42,13 @@ struct ItemDetailView: View {
                 
                 Stepper("Quantity: \(quantity)", value: $quantity, in: 0...999)
                 
-                Stepper("Low Stock Alert: \(quantityThreshold)", value: $quantityThreshold, in: 1...100)
-                    .foregroundColor(quantity <= quantityThreshold ? .red : .primary)
+//                Stepper("Low Stock Alert: \(quantityThreshold)", value: $quantityThreshold, in: 1...100)
+//                    .foregroundColor(quantity <= quantityThreshold ? .red : .primary)
+                Toggle("Enable Low Stock Alert", isOn: $isLowStockAlertEnabled)
+                if isLowStockAlertEnabled {
+                                    Stepper("Low Stock Alert: \(quantityThreshold)", value: $quantityThreshold, in: 1...100)
+                                        .foregroundColor(quantity <= quantityThreshold ? .red : .primary)
+                                }
                 
                 HStack {
                     Text("Price")
@@ -84,7 +91,7 @@ struct ItemDetailView: View {
             // Update item properties
             item.name = name
             item.quantity = Int16(quantity)
-            item.quantityThreshold = Int16(quantityThreshold)
+            item.quantityThreshold = Int16(isLowStockAlertEnabled ? quantityThreshold : 0)
             item.price = price
             item.isAvailable = isAvailable
             item.expirationDate = expirationDate
