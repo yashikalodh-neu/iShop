@@ -14,11 +14,58 @@ struct GroceryListsView: View {
     }
     
     @FetchRequest(
-        sortDescriptors: [NSSortDescriptor(keyPath: \GroceryList.name, ascending: true)],
+        sortDescriptors: [NSSortDescriptor(keyPath: \GroceryList.dateCreated, ascending: false)],
         animation: .default)
     private var groceryLists: FetchedResults<GroceryList>
     
     @State private var showingAddList = false
+    
+    // Sections for date grouping
+    enum DateSection: String, CaseIterable {
+        case today = "Today"
+        case week = "Previous 7 Days"
+        case month = "Previous 30 Days"
+        case older = "Older"
+        
+        var title: String {
+            return self.rawValue
+        }
+    }
+    
+    // Group lists by date sections
+    private func groupListsByDateSection() -> [DateSection: [GroceryList]] {
+        let calendar = Calendar.current
+        let now = Date()
+        let today = calendar.startOfDay(for: now)
+        let oneWeekAgo = calendar.date(byAdding: .day, value: -7, to: today)!
+        let oneMonthAgo = calendar.date(byAdding: .day, value: -30, to: today)!
+        
+        var sectionsDict: [DateSection: [GroceryList]] = [:]
+        
+        for section in DateSection.allCases {
+            sectionsDict[section] = []
+        }
+        
+        for list in groceryLists {
+            guard let creationDate = list.dateCreated else {
+                continue
+            }
+            
+            let startOfCreationDate = calendar.startOfDay(for: creationDate)
+            
+            if calendar.isDate(startOfCreationDate, inSameDayAs: today) {
+                sectionsDict[.today]?.append(list)
+            } else if startOfCreationDate >= oneWeekAgo {
+                sectionsDict[.week]?.append(list)
+            } else if startOfCreationDate >= oneMonthAgo {
+                sectionsDict[.month]?.append(list)
+            } else {
+                sectionsDict[.older]?.append(list)
+            }
+        }
+        
+        return sectionsDict
+    }
     
     var body: some View {
         NavigationView {
@@ -26,29 +73,44 @@ struct GroceryListsView: View {
                 SearchBar(text: $searchText)
                     .padding(.horizontal)
                 
+                let groupedLists = groupListsByDateSection()
+                
                 List {
-                    ForEach(groceryLists) { list in
-                        NavigationLink(destination: ListDetailView(groceryList: list)) {
-                            VStack(alignment: .leading) {
-                                Text(list.wrappedName)
-                                    .font(.headline)
-                                
-                                HStack {
-                                    Text("\(list.itemsArray.count) items")
-                                        .font(.subheadline)
-                                        .foregroundColor(.secondary)
-                                    
-                                    Spacer()
-                                    
-                                    Text(list.formattedTotalSpending)
-                                        .font(.subheadline)
-                                        .foregroundColor(.secondary)
+                    ForEach(DateSection.allCases, id: \.self) { section in
+                        if let lists = groupedLists[section], !lists.isEmpty {
+                            Section(header: Text(section.title)) {
+                                ForEach(lists) { list in
+                                    NavigationLink(destination: ListDetailView(groceryList: list)) {
+                                        VStack(alignment: .leading) {
+                                            Text(list.wrappedName)
+                                                .font(.headline)
+                                            
+                                            HStack {
+                                                Text("\(list.itemsArray.count) items")
+                                                    .font(.subheadline)
+                                                    .foregroundColor(.secondary)
+                                                
+                                                Spacer()
+                                                
+                                                Text(list.formattedTotalSpending)
+                                                    .font(.subheadline)
+                                                    .foregroundColor(.secondary)
+                                            }
+                                            
+                                            Text(formatDate(list.dateCreated))
+                                                .font(.caption)
+                                                .foregroundColor(.secondary)
+                                        }
+                                    }
+                                }
+                                .onDelete { indexSet in
+                                    deleteLists(lists: lists, at: indexSet)
                                 }
                             }
                         }
                     }
-                    .onDelete(perform: deleteLists)
                 }
+                .listStyle(InsetGroupedListStyle())
                 .navigationTitle("iShop")
                 .toolbar {
                     ToolbarItem(placement: .navigationBarTrailing) {
@@ -79,6 +141,14 @@ struct GroceryListsView: View {
         groceryLists.nsPredicate = groceryListsPredicate
     }
     
+    private func formatDate(_ date: Date?) -> String {
+        guard let date = date else { return "No date" }
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .none
+        return formatter.string(from: date)
+    }
+    
     private func addList(name: String) {
         withAnimation {
             let newList = GroceryList(context: viewContext)
@@ -95,9 +165,9 @@ struct GroceryListsView: View {
         }
     }
     
-    private func deleteLists(offsets: IndexSet) {
+    private func deleteLists(lists: [GroceryList], at offsets: IndexSet) {
         withAnimation {
-            offsets.map { groceryLists[$0] }.forEach(viewContext.delete)
+            offsets.map { lists[$0] }.forEach(viewContext.delete)
             
             do {
                 try viewContext.save()
