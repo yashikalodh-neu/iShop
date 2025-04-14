@@ -67,63 +67,90 @@ struct GroceryListsView: View {
         return sectionsDict
     }
     
+    // Check if we should show the "not found" message
+    private var shouldShowNotFoundMessage: Bool {
+        !searchText.isEmpty && groceryLists.isEmpty
+    }
+    
     var body: some View {
         NavigationView {
             VStack {
                 SearchBar(text: $searchText)
                     .padding(.horizontal)
                 
-                let groupedLists = groupListsByDateSection()
-                
-                List {
-                    ForEach(DateSection.allCases, id: \.self) { section in
-                        if let lists = groupedLists[section], !lists.isEmpty {
-                            Section(header: Text(section.title)) {
-                                ForEach(lists) { list in
-                                    NavigationLink(destination: ListDetailView(groceryList: list)) {
-                                        VStack(alignment: .leading) {
-                                            Text(list.wrappedName)
-                                                .font(.headline)
-                                            
-                                            HStack {
-                                                Text("\(list.itemsArray.count) items")
-                                                    .font(.subheadline)
-                                                    .foregroundColor(.secondary)
+                if shouldShowNotFoundMessage {
+                    // Not found message view
+                    VStack(spacing: 20) {
+                        Spacer()
+                        
+                        Image(systemName: "magnifyingglass")
+                            .font(.system(size: 50))
+                            .foregroundColor(.gray)
+                        
+                        Text("No matching lists found")
+                            .font(.headline)
+                            .foregroundColor(.secondary)
+                        
+                        
+                        Spacer()
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                } else {
+                    let groupedLists = groupListsByDateSection()
+                    
+                    List {
+                        ForEach(DateSection.allCases, id: \.self) { section in
+                            if let lists = groupedLists[section], !lists.isEmpty {
+                                Section(header: Text(section.title)) {
+                                    ForEach(lists) { list in
+                                        NavigationLink(destination: ListDetailView(groceryList: list)) {
+                                            VStack(alignment: .leading) {
+                                                Text(list.wrappedName)
+                                                    .font(.headline)
                                                 
-                                                Spacer()
+                                                HStack {
+                                                    Text("\(list.itemsArray.count) items")
+                                                        .font(.subheadline)
+                                                        .foregroundColor(.secondary)
+                                                    
+                                                    Spacer()
+                                                    
+                                                    Text(list.formattedTotalSpending)
+                                                        .font(.subheadline)
+                                                        .foregroundColor(.secondary)
+                                                }
                                                 
-                                                Text(list.formattedTotalSpending)
-                                                    .font(.subheadline)
+                                                Text(formatDate(list.dateCreated))
+                                                    .font(.caption)
                                                     .foregroundColor(.secondary)
                                             }
-                                            
-                                            Text(formatDate(list.dateCreated))
-                                                .font(.caption)
-                                                .foregroundColor(.secondary)
                                         }
                                     }
-                                }
-                                .onDelete { indexSet in
-                                    deleteLists(lists: lists, at: indexSet)
+                                    .onDelete { indexSet in
+                                        deleteLists(lists: lists, at: indexSet)
+                                    }
                                 }
                             }
                         }
                     }
+                    .listStyle(InsetGroupedListStyle())
                 }
-                .listStyle(InsetGroupedListStyle())
-                .navigationTitle("iShop")
-                .toolbar {
-                    ToolbarItem(placement: .navigationBarTrailing) {
-                        Button(action: { showingAddList = true }) {
-                            Label("Add List", systemImage: "plus")
-                        }
+                
+                Spacer()
+            }
+            .navigationTitle("iShop")
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button(action: { showingAddList = true }) {
+                        Label("Add List", systemImage: "plus")
                     }
                 }
-                .sheet(isPresented: $showingAddList) {
-                    AddListView { listName in
-                        addList(name: listName)
-                        showingAddList = false
-                    }
+            }
+            .sheet(isPresented: $showingAddList) {
+                AddListView { listName in
+                    addList(name: listName)
+                    showingAddList = false
                 }
             }
             

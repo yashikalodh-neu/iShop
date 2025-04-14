@@ -8,6 +8,9 @@ struct ListDetailView: View {
     @State private var showingSortOptions = false
     @State private var sortOption = SortOption.nameAscending
     
+    // Add a refreshID to force UI updates
+    @State private var refreshID = UUID()
+    
     enum SortOption {
         case nameAscending, nameDescending, priceAscending, priceDescending, expirationDate
     }
@@ -61,13 +64,14 @@ struct ListDetailView: View {
                         }
             ) {
                 ForEach(sortedItems) { item in
-                    NavigationLink(destination: ItemDetailView(item: item)) {
+                    NavigationLink(destination: ItemDetailViewWrapper(item: item, updateParent: updateView)) {
                         ItemRowView(item: item)
                     }
                 }
                 .onDelete(perform: deleteItems)
             }
         }
+        .id(refreshID) // Force view to refresh when refreshID changes
         .navigationTitle(groceryList.wrappedName)
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
@@ -75,9 +79,16 @@ struct ListDetailView: View {
                     Label("Add Item", systemImage: "plus")
                 }
             }
+            
+            // Add a refresh button
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button(action: updateView) {
+                    Label("Refresh", systemImage: "arrow.clockwise")
+                }
+            }
         }
         .sheet(isPresented: $showingAddItem) {
-            AddItemView(groceryList: groceryList)
+            AddItemViewWrapper(groceryList: groceryList, updateParent: updateView)
         }
         .actionSheet(isPresented: $showingSortOptions) {
             ActionSheet(title: Text("Sort Items"), buttons: [
@@ -89,6 +100,20 @@ struct ListDetailView: View {
                 .cancel()
             ])
         }
+        // Add a notification observer to refresh when context changes
+        .onReceive(NotificationCenter.default.publisher(for: .NSManagedObjectContextDidSave)) { _ in
+            updateView()
+        }
+    }
+    
+    // Function to update the view when items change
+    func updateView() {
+        // Generate a new UUID to force view refresh
+        refreshID = UUID()
+        
+        // Also reload the grocery list object from the context if needed
+        // This ensures we have the latest data from Core Data
+        viewContext.refresh(groceryList, mergeChanges: true)
     }
     
     private func deleteItems(offsets: IndexSet) {
@@ -96,12 +121,6 @@ struct ListDetailView: View {
             let itemsToDelete = offsets.map { sortedItems[$0] }
             
             // Cancel notifications for deleted items
-//            itemsToDelete.forEach { item in
-//                if let groceryItemId = item.groceryItemId { // If the id is UUID, proceed
-//                    NotificationManager.shared.cancelAllNotifications(for: groceryItemId)
-//                }
-//            }
-            
             itemsToDelete.forEach { item in
                 if let id = item.groceryItemId {
                     NotificationManager.shared.cancelAllNotifications(for: id)
@@ -113,10 +132,41 @@ struct ListDetailView: View {
             
             do {
                 try viewContext.save()
+                // Update the view after deleting items
+                updateView()
             } catch {
                 // Handle the Core Data error
                 print("Error deleting items: \(error)")
             }
         }
+    }
+}
+
+// Wrapper view for ItemDetailView that handles the update callback
+struct ItemDetailViewWrapper: View {
+    @ObservedObject var item: GroceryItem
+    var updateParent: () -> Void
+    
+    var body: some View {
+        ItemDetailView(item: item)
+            .onDisappear {
+                // When the detail view is dismissed, update the parent
+                updateParent()
+            }
+    }
+}
+
+// Wrapper view for AddItemView that handles the update callback
+struct AddItemViewWrapper: View {
+    @Environment(\.presentationMode) private var presentationMode
+    var groceryList: GroceryList
+    var updateParent: () -> Void
+    
+    var body: some View {
+        AddItemView(groceryList: groceryList)
+            .onDisappear {
+                // When the add item view is dismissed, update the parent
+                updateParent()
+            }
     }
 }
