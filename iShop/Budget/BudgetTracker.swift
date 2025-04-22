@@ -46,18 +46,9 @@ struct PieChartView: View {
                     .shadow(color: Color.black.opacity(0.1), radius: 2, x: 0, y: 1)
                     .frame(width: min(geometry.size.width, geometry.size.height) * 0.5)
                 
-//                // Total amount in center
-//                VStack {
-//                    Text("Total")
-//                        .font(.caption)
-//                        .foregroundColor(.secondary)
-//                    Text("$\(Int(total))")
-//                        .font(.title3)
-//                        .fontWeight(.bold)
-//                }
             }
         }
-        .frame(height: 220) // Slightly increased height for better visualization
+        .frame(height: 220) 
         .aspectRatio(1, contentMode: .fit)
     }
     
