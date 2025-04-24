@@ -3,8 +3,10 @@ import SwiftUI
 struct AddItemView: View {
     @Environment(\.managedObjectContext) private var viewContext
     @Environment(\.presentationMode) var presentationMode
+    @EnvironmentObject private var appState: AppState
     
     var groceryList: GroceryList
+    var updateParent: (() -> Void)?
     
     @State private var name = ""
     @State private var quantity = 1
@@ -15,26 +17,39 @@ struct AddItemView: View {
     @State private var expirationDate = Date()
     @State private var isLowStockAlertEnabled = false
     
+    // Currency formatter
+    private let currencyFormatter: NumberFormatter = {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .currency
+        formatter.currencySymbol = "$"
+        formatter.minimumFractionDigits = 2
+        formatter.maximumFractionDigits = 2
+        return formatter
+    }()
+    
     var body: some View {
         NavigationView {
             Form {
-                Section(header: Text("Item Details")) {
+                // Use a completely different approach to avoid generic type errors
+                Group {
+                    Text("Item Details")
+                        .font(.headline)
+                        .padding(.top, 5)
+                    
                     TextField("Name", text: $name)
                     
                     Stepper("Quantity: \(quantity)", value: $quantity, in: 1...999)
                     
-//                    Stepper("Low Stock Alert: \(quantityThreshold)", value: $quantityThreshold, in: 1...100)
                     Toggle("Enable Low Stock Alert", isOn: $isLowStockAlertEnabled)
-                                        
-                                        // Show low stock threshold only when the alert is enabled
-                                        if isLowStockAlertEnabled {
-                                            Stepper("Low Stock Alert: \(quantityThreshold)", value: $quantityThreshold, in: 1...100)
-                                        }
+                    
+                    if isLowStockAlertEnabled {
+                        Stepper("Low Stock Alert: \(quantityThreshold)", value: $quantityThreshold, in: 1...100)
+                    }
                     
                     HStack {
                         Text("Price")
                         Spacer()
-                        TextField("Price", value: $price, formatter: NumberFormatter.currencyFormatter)
+                        TextField("Price", value: $price, formatter: currencyFormatter)
                             .keyboardType(.decimalPad)
                             .multilineTextAlignment(.trailing)
                     }
@@ -73,48 +88,48 @@ struct AddItemView: View {
             newItem.groceryItemId = newItemId
             newItem.name = name
             newItem.quantity = Int16(quantity)
-            newItem.quantityThreshold = Int16(quantityThreshold)
+            newItem.quantityThreshold = Int16(isLowStockAlertEnabled ? quantityThreshold : 0)
             newItem.price = price
             newItem.isAvailable = isAvailable
             newItem.expirationDate = hasExpirationDate ? expirationDate : nil
             newItem.dateAdded = Date()
             newItem.parentList = groceryList
             
+            // Update the groceryList.items set to include the new item
+            groceryList.addToItems(newItem)
+            
             do {
                 try viewContext.save()
                 
                 // Schedule notifications
-                if let id = newItem.groceryItemId {
-                    NotificationManager.shared.scheduleLowStockNotification(for: newItem)
-                    if hasExpirationDate {
-                        NotificationManager.shared.scheduleExpirationNotification(for: newItem)
-                    }
+                NotificationManager.shared.scheduleLowStockNotification(for: newItem)
+                if hasExpirationDate {
+                    NotificationManager.shared.scheduleExpirationNotification(for: newItem)
+                }
+                
+                // Call parent update if provided
+                updateParent?()
+                
+                // Notify the app that data has changed
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    appState.refreshData()
                 }
                 
                 presentationMode.wrappedValue.dismiss()
             } catch {
-                // Handle the Core Data error
                 print("Error saving new item: \(error)")
-                            }
-                        }
-                    }
-                }
+            }
+        }
+    }
+}
 
-                // Extensions
-                extension NumberFormatter {
-                    static var currencyFormatter: NumberFormatter {
-                        let formatter = NumberFormatter()
-                        formatter.numberStyle = .currency
-                        formatter.currencySymbol = "$"
-                        formatter.minimumFractionDigits = 2
-                        formatter.maximumFractionDigits = 2
-                        return formatter
-                    }
-                }
-
-                extension GroceryList: Identifiable {
-                    public var id: UUID {
-                        wrappedId
-                    }
-                }
-
+// Wrapper view to ensure the updateParent callback is properly passed
+struct AddItemViewWrapper: View {
+    @Environment(\.presentationMode) var presentationMode
+    var groceryList: GroceryList
+    var updateParent: () -> Void
+    
+    var body: some View {
+        AddItemView(groceryList: groceryList, updateParent: updateParent)
+    }
+}

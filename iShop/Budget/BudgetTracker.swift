@@ -1,5 +1,6 @@
 import SwiftUI
 import CoreData
+import Combine
 
 struct PieSlice: Shape {
     let startAngle: Double
@@ -40,15 +41,14 @@ struct PieChartView: View {
                     }
                 }
                 
-                 //Center hole for donut chart
+                // Center hole for donut chart
                 Circle()
                     .fill(Color(.systemBackground))
                     .shadow(color: Color.black.opacity(0.1), radius: 2, x: 0, y: 1)
                     .frame(width: min(geometry.size.width, geometry.size.height) * 0.5)
-                
             }
         }
-        .frame(height: 220) 
+        .frame(height: 220)
         .aspectRatio(1, contentMode: .fit)
     }
     
@@ -93,18 +93,63 @@ struct CategoryRow: View {
     }
 }
 
+class BudgetTrackerViewModel: ObservableObject {
+    @Published var startDate = Calendar.current.date(byAdding: .day, value: -30, to: Date()) ?? Date()
+    @Published var endDate = Date()
+    @Published var refreshID = UUID()
+    @Published var groceryLists: [GroceryList] = []
+    
+    private var viewContext: NSManagedObjectContext
+    private var cancellables = Set<AnyCancellable>()
+    
+    init(viewContext: NSManagedObjectContext) {
+        self.viewContext = viewContext
+        
+        // Listen for Core Data changes, but don't refresh automatically
+        NotificationCenter.default.publisher(for: .NSManagedObjectContextDidSave)
+            .sink { [weak self] _ in
+                print("Core Data change detected in BudgetTracker")
+                // We don't auto-refresh here, we'll do it when the tab becomes active
+            }
+            .store(in: &cancellables)
+    }
+    
+    // Explicitly fetch data from Core Data
+    func loadData() {
+        print("BudgetTrackerViewModel: Loading data...")
+        let fetchRequest: NSFetchRequest<GroceryList> = GroceryList.fetchRequest()
+        fetchRequest.sortDescriptors = [NSSortDescriptor(keyPath: \GroceryList.name, ascending: true)]
+        
+        do {
+            let fetchedLists = try viewContext.fetch(fetchRequest)
+            DispatchQueue.main.async {
+                self.groceryLists = fetchedLists
+                print("BudgetTrackerViewModel: Loaded \(fetchedLists.count) lists")
+                self.refreshID = UUID() // Force UI update
+            }
+        } catch {
+            print("Error fetching grocery lists: \(error)")
+        }
+    }
+    
+    func manualRefresh() {
+        print("BudgetTrackerViewModel: Manual refresh triggered")
+        loadData()
+    }
+}
+
+
 struct BudgetTracker: View {
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.managedObjectContext) private var viewContext
+    @EnvironmentObject private var appState: AppState
     
-    @FetchRequest(
-        sortDescriptors: [NSSortDescriptor(keyPath: \GroceryList.name, ascending: true)],
-        animation: .default)
-    private var groceryLists: FetchedResults<GroceryList>
-    
+    // State variables
     @State private var showingDatePicker = false
     @State private var startDate = Calendar.current.date(byAdding: .day, value: -30, to: Date()) ?? Date()
     @State private var endDate = Date()
+    @State private var refreshID = UUID()
+    @State private var allLists: [GroceryList] = []
     
     // Color theme
     private var accentColor: Color {
@@ -119,16 +164,17 @@ struct BudgetTracker: View {
         colorScheme == .dark ? Color.black.opacity(0.3) : Color.black.opacity(0.1)
     }
     
-    var totalSpending: Double {
-        groceryLists.reduce(0) { $0 + $1.totalSpending }
-    }
-    
+    // Computed properties
     var dateFilteredLists: [GroceryList] {
-        let lists = groceryLists.filter { list in
+        // Use calendar for more reliable date comparison
+        let calendar = Calendar.current
+        let startOfStartDate = calendar.startOfDay(for: startDate)
+        let endOfEndDate = calendar.date(bySettingHour: 23, minute: 59, second: 59, of: endDate) ?? endDate
+        
+        return allLists.filter { list in
             guard let dateCreated = list.dateCreated else { return false }
-            return dateCreated >= startDate && dateCreated <= endDate
+            return dateCreated >= startOfStartDate && dateCreated <= endOfEndDate
         }
-        return lists
     }
     
     var dateFilteredSpending: Double {
@@ -136,13 +182,38 @@ struct BudgetTracker: View {
     }
     
     // Group spending by category (in this case, by list)
+    // FIXED: Now properly combines lists with identical names using a Dictionary
     var spendingByList: [(name: String, amount: Double, transactions: Int)] {
-        let grouped = Dictionary(grouping: dateFilteredLists) { $0.wrappedName }
+        // First, extract all the lists in the filtered date range
+        let filteredLists = dateFilteredLists
         
-        return grouped.map { (key, lists) in
-            let totalAmount = lists.reduce(0) { $0 + $1.totalSpending }
-            return (name: key, amount: totalAmount, transactions: lists.count)
-        }.sorted { $0.amount > $1.amount }
+        // Create a dictionary to combine data for lists with the same name
+        var combinedData: [String: (amount: Double, transactions: Int)] = [:]
+        
+        // Iterate through each list and aggregate data by name
+        for list in filteredLists {
+            let name = list.wrappedName
+            let amount = list.totalSpending
+            let transactions = list.itemsArray.count
+            
+            // If we already have an entry for this name, add to it
+            if var existing = combinedData[name] {
+                existing.amount += amount
+                existing.transactions += transactions
+                combinedData[name] = existing
+            } else {
+                // Otherwise create a new entry
+                combinedData[name] = (amount: amount, transactions: transactions)
+            }
+        }
+        
+        // Convert the dictionary to an array of tuples
+        let result = combinedData.map { (name, data) in
+            return (name: name, amount: data.amount, transactions: data.transactions)
+        }
+        
+        // Sort by amount (highest first)
+        return result.sorted { $0.amount > $1.amount }
     }
     
     // Pie chart data with colors
@@ -151,14 +222,28 @@ struct BudgetTracker: View {
             .blue, .purple, .orange, .green, .pink, .red, .yellow, .teal
         ]
         
-        var result = [(name: String, amount: Double, color: Color)]()
-        
-        for (index, item) in spendingByList.enumerated() {
+        return spendingByList.enumerated().map { index, item in
             let colorIndex = index % colors.count
-            result.append((name: item.name, amount: item.amount, color: colors[colorIndex]))
+            return (name: item.name, amount: item.amount, color: colors[colorIndex])
         }
+    }
+    
+    // Fresh fetch from Core Data
+    private func loadData() {
+        let fetchRequest: NSFetchRequest<GroceryList> = GroceryList.fetchRequest()
+        fetchRequest.sortDescriptors = [NSSortDescriptor(keyPath: \GroceryList.name, ascending: true)]
         
-        return result
+        do {
+            // Force the context to refresh from the persistent store
+            viewContext.refreshAllObjects()
+            
+            let fetchedLists = try viewContext.fetch(fetchRequest)
+            
+            allLists = fetchedLists
+            refreshID = UUID() // Force view refresh
+        } catch {
+            print("Error fetching grocery lists: \(error)")
+        }
     }
     
     var body: some View {
@@ -210,8 +295,18 @@ struct BudgetTracker: View {
                     
                     // Summary card with pie chart
                     VStack(alignment: .leading, spacing: 16) {
-                        Label("Spending Summary", systemImage: "chart.pie.fill")
-                            .font(.headline)
+                        HStack {
+                            Label("Spending Summary", systemImage: "chart.pie.fill")
+                                .font(.headline)
+                                
+                            Spacer()
+                                
+                            // Add refresh button
+//                            Button(action: loadData) {
+//                                Image(systemName: "arrow.clockwise")
+//                                    .foregroundColor(.blue)
+//                            }
+                        }
                         
                         if !spendingByList.isEmpty {
                             PieChartView(
@@ -250,7 +345,10 @@ struct BudgetTracker: View {
                                     Text("Average")
                                         .font(.caption)
                                         .foregroundColor(.secondary)
-                                    Text(dateFilteredLists.isEmpty ? "$0.00" : String(format: "$%.2f", dateFilteredSpending / Double(dateFilteredLists.count)))
+                                    let avgAmount = dateFilteredLists.isEmpty
+                                        ? 0.0
+                                        : dateFilteredSpending / Double(dateFilteredLists.count)
+                                    Text(String(format: "$%.2f", avgAmount))
                                         .font(.headline)
                                 }
                                 .frame(maxWidth: .infinity)
@@ -280,17 +378,23 @@ struct BudgetTracker: View {
                                 .frame(maxWidth: .infinity, minHeight: 100)
                                 .multilineTextAlignment(.center)
                         } else {
-                            ForEach(0..<spendingByList.count, id: \.self) { index in
-                                if index > 0 {
-                                    Divider()
+                            // Use a ForEach with the name as the identifier to ensure uniqueness
+                            ForEach(spendingByList, id: \.name) { item in
+                                VStack {
+                                    if spendingByList.first?.name != item.name {
+                                        Divider()
+                                    }
+                                    
+                                    // Find the matching color for this item
+                                    let color = pieChartData.first(where: { $0.name == item.name })?.color ?? .gray
+                                    
+                                    CategoryRow(
+                                        name: item.name,
+                                        amount: item.amount,
+                                        color: color,
+                                        transactions: item.transactions
+                                    )
                                 }
-                                
-                                CategoryRow(
-                                    name: spendingByList[index].name,
-                                    amount: spendingByList[index].amount,
-                                    color: pieChartData[index].color,
-                                    transactions: spendingByList[index].transactions
-                                )
                             }
                         }
                     }
@@ -304,13 +408,41 @@ struct BudgetTracker: View {
                     Spacer(minLength: 20)
                 }
                 .padding(.vertical)
-                .id(spendingByList.reduce("", { $0 + $1.name + String($1.amount) }))
+                .id(refreshID) // Force view refresh
             }
             .navigationTitle("Budget Tracker")
             .sheet(isPresented: $showingDatePicker) {
-                DateRangePickerView(startDate: $startDate, endDate: $endDate, isPresented: $showingDatePicker)
+                DateRangePickerView(
+                    startDate: $startDate,
+                    endDate: $endDate,
+                    isPresented: $showingDatePicker,
+                    onDismiss: {
+                        // Refresh when date range changes
+                        loadData()
+                    }
+                )
             }
             .background(Color(.systemGroupedBackground).ignoresSafeArea())
+            .onAppear {
+                // Load data when view appears
+                loadData()
+            }
+            .onChange(of: appState.dataChanged) { _, _ in
+                // First, reset Core Data context cache
+                viewContext.refreshAllObjects()
+                
+                // Then load fresh data after a small delay
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    loadData()
+                }
+            }
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button(action: loadData) {
+                        Label("Refresh", systemImage: "arrow.clockwise")
+                    }
+                }
+            }
         }
     }
     

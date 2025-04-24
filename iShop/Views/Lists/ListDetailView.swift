@@ -1,11 +1,14 @@
 import SwiftUI
 
+// MARK: - ListDetailView
+
 struct ListDetailView: View {
     @Environment(\.managedObjectContext) private var viewContext
     @ObservedObject var groceryList: GroceryList
     
     @State private var showingAddItem = false
     @State private var showingSortOptions = false
+    @State private var showingBatchUpdate = false
     @State private var sortOption = SortOption.nameAscending
     
     // Add a refreshID to force UI updates
@@ -36,42 +39,123 @@ struct ListDetailView: View {
         }
     }
     
+    var totalQuantity: Int {
+        return sortedItems.reduce(0) { $0 + Int($1.quantity) }
+    }
+    
     var body: some View {
         List {
-            Section(header: Text("Summary")) {
-                HStack {
-                    Text("Total Spending")
-                    Spacer()
-                    Text(groceryList.formattedTotalSpending)
-                        .fontWeight(.bold)
-                }
-                
-                HStack {
-                    Text("Available Items")
-                    Spacer()
-                    Text("\(groceryList.availableItemsCount) of \(groceryList.itemsArray.count)")
-                }
-            }
-            
-            Section(header:
-                        HStack {
-                            Text("Items")
-                            Spacer()
-                            Button(action: { showingSortOptions = true }) {
-                                Label("Sort", systemImage: "arrow.up.arrow.down")
-                                    .font(.caption)
-                            }
+            // Summary Section with enhanced UI
+            Section {
+                VStack(spacing: 16) {
+                    // Total spending card
+                    HStack(spacing: 0) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Total Spending")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                            
+                            Text(groceryList.formattedTotalSpending)
+                                .font(.title2)
+                                .fontWeight(.bold)
+                                .foregroundColor(.blue)
                         }
-            ) {
-                ForEach(sortedItems) { item in
-                    NavigationLink(destination: ItemDetailViewWrapper(item: item, updateParent: updateView)) {
-                        ItemRowView(item: item)
+                        
+                        Spacer()
+                        
+                    }
+                    .padding(.vertical, 8)
+                    
+                    // Stats cards in a 2-column grid
+                    HStack(spacing: 16) {
+                        // Available items
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .foregroundColor(.green)
+                                Text("Available")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            
+                            Text("\(groceryList.availableItemsCount) of \(groceryList.itemsArray.count)")
+                                .font(.callout)
+                                .fontWeight(.semibold)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(10)
+                        .background(Color.green.opacity(0.1))
+                        .cornerRadius(10)
+                        
+                        // Total quantity
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack {
+                                Image(systemName: "number.circle.fill")
+                                    .foregroundColor(.orange)
+                                Text("Total Items")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            
+                            Text("\(totalQuantity)")
+                                .font(.callout)
+                                .fontWeight(.semibold)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(10)
+                        .background(Color.orange.opacity(0.1))
+                        .cornerRadius(10)
                     }
                 }
+                .padding(.vertical, 4)
+            } header: {
+                Text("Summary")
+                    .font(.headline)
+            }
+            
+            // Items Section with improved header
+            Section {
+                ForEach(sortedItems) { item in
+                    RowWithNavigation(item: item, updateParent: updateView)
+                        .environment(\.managedObjectContext, viewContext)
+                }
                 .onDelete(perform: deleteItems)
+            } header: {
+                HStack {
+                    Text("Items")
+                        .font(.headline)
+                    Spacer()
+                    
+                    // Sort button
+                    Button(action: { showingSortOptions = true }) {
+                        HStack(spacing: 4) {
+                            Text("Sort")
+                                .font(.caption)
+                            Image(systemName: "arrow.up.arrow.down")
+                                .font(.caption)
+                        }
+                        .padding(.vertical, 4)
+                        .padding(.horizontal, 8)
+                        .background(Color.blue.opacity(0.1))
+                        .cornerRadius(8)
+                    }
+                    
+                    Button(action: { showingBatchUpdate = true }) {
+                        HStack(spacing: 4) {
+                            Text("Update")
+                                .font(.caption)
+                        }
+                        .padding(.vertical, 4)
+                        .padding(.horizontal, 8)
+                        .background(Color.blue.opacity(0.1))
+                        .cornerRadius(8)
+                    }
+                    
+                }
             }
         }
         .id(refreshID) // Force view to refresh when refreshID changes
+        .listStyle(InsetGroupedListStyle())
         .navigationTitle(groceryList.wrappedName)
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
@@ -87,9 +171,15 @@ struct ListDetailView: View {
                 }
             }
         }
+        // Sheet for adding new items
         .sheet(isPresented: $showingAddItem) {
             AddItemViewWrapper(groceryList: groceryList, updateParent: updateView)
         }
+        // Sheet for batch updating items
+        .sheet(isPresented: $showingBatchUpdate) {
+            BatchUpdateView(groceryList: groceryList, updateParent: updateView)
+        }
+        // Action sheet for sorting options
         .actionSheet(isPresented: $showingSortOptions) {
             ActionSheet(title: Text("Sort Items"), buttons: [
                 .default(Text("Name (A-Z)")) { sortOption = .nameAscending },
@@ -139,34 +229,5 @@ struct ListDetailView: View {
                 print("Error deleting items: \(error)")
             }
         }
-    }
-}
-
-// Wrapper view for ItemDetailView that handles the update callback
-struct ItemDetailViewWrapper: View {
-    @ObservedObject var item: GroceryItem
-    var updateParent: () -> Void
-    
-    var body: some View {
-        ItemDetailView(item: item)
-            .onDisappear {
-                // When the detail view is dismissed, update the parent
-                updateParent()
-            }
-    }
-}
-
-// Wrapper view for AddItemView that handles the update callback
-struct AddItemViewWrapper: View {
-    @Environment(\.presentationMode) private var presentationMode
-    var groceryList: GroceryList
-    var updateParent: () -> Void
-    
-    var body: some View {
-        AddItemView(groceryList: groceryList)
-            .onDisappear {
-                // When the add item view is dismissed, update the parent
-                updateParent()
-            }
     }
 }

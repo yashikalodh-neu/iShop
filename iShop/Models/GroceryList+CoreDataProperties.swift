@@ -27,9 +27,12 @@ extension GroceryList {
         }
     }
 
+    // Fixed to multiply price by quantity
     public var totalSpending: Double {
         let set = items as? Set<GroceryItem> ?? []
-        return set.reduce(0) { $0 + $1.price }
+        return set.reduce(0) { total, item in
+            return total + (item.price * Double(item.quantity))
+        }
     }
 
     public var formattedTotalSpending: String {

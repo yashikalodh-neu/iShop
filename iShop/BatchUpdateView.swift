@@ -1,0 +1,189 @@
+import SwiftUI
+
+struct BatchUpdateView: View {
+    @Environment(\.presentationMode) private var presentationMode
+    @Environment(\.managedObjectContext) private var viewContext
+    var groceryList: GroceryList
+    var updateParent: () -> Void
+    
+    @State private var items: [GroceryItem]
+    @State private var isEdited = false
+    
+    // Initialize with sorted items from the grocery list
+    init(groceryList: GroceryList, updateParent: @escaping () -> Void) {
+        self.groceryList = groceryList
+        self.updateParent = updateParent
+        
+        // Initialize state with a sorted copy of the grocery list items
+        _items = State(initialValue: groceryList.itemsArray.sorted { $0.wrappedName < $1.wrappedName })
+    }
+    
+    var body: some View {
+        NavigationView {
+            List {
+                Section {
+                    ForEach(items.indices, id: \.self) { index in
+                        BatchUpdateRow(
+                            item: $items[index],
+                            updateEdited: { isEdited = true }
+                        )
+                    }
+                } header: {
+                    HStack {
+                        Text("Update Items")
+                            .font(.headline)
+                        Spacer()
+                        Button(action: toggleAllAvailability) {
+                            HStack {
+                                Image(systemName: "checkmark.circle")
+                                Text("Toggle All")
+                                    .font(.caption)
+                            }
+                            .padding(.vertical, 4)
+                            .padding(.horizontal, 8)
+                            .background(Color.green.opacity(0.1))
+                            .cornerRadius(8)
+                        }
+                    }
+                }
+            }
+            .listStyle(InsetGroupedListStyle())
+            .navigationTitle("Batch Update")
+            .navigationBarItems(
+                leading: Button("Cancel") {
+                    presentationMode.wrappedValue.dismiss()
+                },
+                trailing: Button("Save") {
+                    saveChanges()
+                }
+                .disabled(!isEdited)
+            )
+            .toolbar {
+                ToolbarItem(placement: .bottomBar) {
+                    HStack {
+                        Spacer()
+                        Text("\(items.count) items")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        Spacer()
+                    }
+                }
+            }
+        }
+    }
+    
+    // Toggle availability for all items
+    private func toggleAllAvailability() {
+        withAnimation {
+            // Determine if we should mark all as available or unavailable
+            // If all are available, mark all unavailable, otherwise mark all available
+            let allAvailable = !items.contains { !$0.isAvailable }
+            
+            for index in items.indices {
+                items[index].isAvailable = !allAvailable
+            }
+            
+            isEdited = true
+        }
+    }
+    
+    // Save all changes to Core Data
+    private func saveChanges() {
+        do {
+            try viewContext.save()
+            updateParent()
+            presentationMode.wrappedValue.dismiss()
+        } catch {
+            print("Error saving batch updates: \(error)")
+        }
+    }
+}
+
+// Row component for the batch update view
+struct BatchUpdateRow: View {
+    @Binding var item: GroceryItem
+    var updateEdited: () -> Void
+    
+    var body: some View {
+        HStack(spacing: 12) {
+            // Availability toggle
+            Button(action: toggleAvailability) {
+                Image(systemName: item.isAvailable ? "checkmark.circle.fill" : "circle")
+                    .foregroundColor(item.isAvailable ? .green : .gray)
+                    .font(.system(size: 20))
+            }
+            .buttonStyle(BorderlessButtonStyle())
+            
+            // Item name
+            Text(item.wrappedName)
+                .fontWeight(.medium)
+                .strikethrough(!item.isAvailable, color: .red)
+            
+            Spacer()
+            
+            // Quantity controls
+            HStack(spacing: 8) {
+                // Decrement button
+                Button(action: decrementQuantity) {
+                    ZStack {
+                        Circle()
+                            .fill(Color.blue.opacity(0.1))
+                            .frame(width: 28, height: 28)
+                        
+                        Image(systemName: "minus")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundColor(.blue)
+                    }
+                }
+                .buttonStyle(BorderlessButtonStyle())
+                .disabled(item.quantity <= 1)
+                
+                // Quantity display
+                Text("\(Int(item.quantity))")
+                    .frame(minWidth: 24)
+                    .font(.system(size: 16, weight: .medium))
+                
+                // Increment button
+                Button(action: incrementQuantity) {
+                    ZStack {
+                        Circle()
+                            .fill(Color.blue.opacity(0.1))
+                            .frame(width: 28, height: 28)
+                        
+                        Image(systemName: "plus")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundColor(.blue)
+                    }
+                }
+                .buttonStyle(BorderlessButtonStyle())
+            }
+        }
+        .padding(.vertical, 4)
+    }
+    
+    // Toggle availability
+    private func toggleAvailability() {
+        withAnimation {
+            item.isAvailable.toggle()
+            updateEdited()
+        }
+    }
+    
+    // Increment quantity
+    private func incrementQuantity() {
+        withAnimation {
+            item.quantity += 1
+            updateEdited()
+        }
+    }
+    
+    // Decrement quantity
+    private func decrementQuantity() {
+        withAnimation {
+            if item.quantity > 1 {
+                item.quantity -= 1
+                updateEdited()
+            }
+        }
+    }
+}

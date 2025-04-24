@@ -8,11 +8,16 @@ struct iShopApp: App {
     @Environment(\.scenePhase) private var scenePhase
     private var cancellables = Set<AnyCancellable>()
     
+    // Add the AppState as a StateObject
+    @StateObject private var appState = AppState()
+    
     var body: some Scene {
         WindowGroup {
             ZStack {
                 ContentView()
                     .environment(\.managedObjectContext, persistenceController.container.viewContext)
+                    // Inject the AppState into the environment
+                    .environmentObject(appState)
                 
                 if isShowingSplash {
                     SplashScreen()
@@ -42,6 +47,31 @@ struct iShopApp: App {
                     }
                 }
             }
+        }
+    }
+}
+
+
+class AppState: ObservableObject {
+    @Published var dataChanged = UUID()
+    private var cancellables = Set<AnyCancellable>()
+    
+    init() {
+        // Listen for Core Data changes globally
+        NotificationCenter.default.publisher(for: .NSManagedObjectContextDidSave)
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                print("Core Data save detected in AppState")
+                self?.refreshData()
+            }
+            .store(in: &cancellables)
+    }
+    
+    func refreshData() {
+        DispatchQueue.main.async {
+            print("AppState refreshing data...")
+            self.dataChanged = UUID()
+            print("New data ID: \(self.dataChanged)")
         }
     }
 }

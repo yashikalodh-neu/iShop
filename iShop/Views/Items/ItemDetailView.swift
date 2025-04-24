@@ -22,6 +22,16 @@ struct ItemDetailView: View {
         return formatter
     }()
     
+    // Currency formatter
+    private let currencyFormatter: NumberFormatter = {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .currency
+        formatter.currencySymbol = "$"
+        formatter.minimumFractionDigits = 2
+        formatter.maximumFractionDigits = 2
+        return formatter
+    }()
+    
     init(item: GroceryItem) {
         self.item = item
         
@@ -37,23 +47,25 @@ struct ItemDetailView: View {
     
     var body: some View {
         Form {
-            Section(header: Text("Item Details")) {
+            Group {
+                Text("Item Details")
+                    .font(.headline)
+                    .padding(.top, 5)
+                
                 TextField("Name", text: $name)
                 
                 Stepper("Quantity: \(quantity)", value: $quantity, in: 0...999)
                 
-//                Stepper("Low Stock Alert: \(quantityThreshold)", value: $quantityThreshold, in: 1...100)
-//                    .foregroundColor(quantity <= quantityThreshold ? .red : .primary)
                 Toggle("Enable Low Stock Alert", isOn: $isLowStockAlertEnabled)
                 if isLowStockAlertEnabled {
-                                    Stepper("Low Stock Alert: \(quantityThreshold)", value: $quantityThreshold, in: 1...100)
-                                        .foregroundColor(quantity <= quantityThreshold ? .red : .primary)
-                                }
+                    Stepper("Low Stock Alert: \(quantityThreshold)", value: $quantityThreshold, in: 1...100)
+                        .foregroundColor(quantity <= quantityThreshold ? .red : .primary)
+                }
                 
                 HStack {
                     Text("Price")
                     Spacer()
-                    TextField("Price", value: $price, formatter: NumberFormatter.currencyFormatter)
+                    TextField("Price", value: $price, formatter: currencyFormatter)
                         .keyboardType(.decimalPad)
                         .multilineTextAlignment(.trailing)
                 }
@@ -100,10 +112,8 @@ struct ItemDetailView: View {
                 try viewContext.save()
                 
                 // Schedule or update notifications
-//                if let id = item.id {
-                    NotificationManager.shared.scheduleLowStockNotification(for: item)
-                    NotificationManager.shared.scheduleExpirationNotification(for: item)
-//                }
+                NotificationManager.shared.scheduleLowStockNotification(for: item)
+                NotificationManager.shared.scheduleExpirationNotification(for: item)
                 
                 // Go back to the list view
                 presentationMode.wrappedValue.dismiss()

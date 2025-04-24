@@ -1,40 +1,135 @@
 import SwiftUI
 
+// MARK: - ItemRowView
+
 struct ItemRowView: View {
+    @Environment(\.managedObjectContext) private var viewContext
     @ObservedObject var item: GroceryItem
     
     var body: some View {
-        HStack {
-            VStack(alignment: .leading) {
+        HStack(spacing: 12) {
+            // Item status indicator (checkbox)
+            Button(action: toggleItemStatus) {
+                Image(systemName: item.isAvailable ? "checkmark.circle.fill" : "circle")
+                    .foregroundColor(item.isAvailable ? .green : .gray)
+                    .font(.system(size: 20))
+            }
+            .buttonStyle(BorderlessButtonStyle())
+            
+            // Item details
+            VStack(alignment: .leading, spacing: 4) {
                 Text(item.wrappedName)
-                    .fontWeight(item.isAvailable ? .regular : .light)
-                    .foregroundColor(item.isAvailable ? .primary : .secondary)
-                    .strikethrough(!item.isAvailable)
+                    .fontWeight(.medium)
+                    .font(.system(size: 16))
+                    .strikethrough(!item.isAvailable, color: .red)
                 
-                HStack {
-                    Text("Qty: \(item.quantity)")
+                if let expirationDate = item.expirationDate {
+                    Text("Expires: \(expirationDate, formatter: dateFormatter)")
                         .font(.caption)
-                        .foregroundColor(item.isLowStock ? .red : .secondary)
-                    
-                    if let expirationDate = item.expirationDate {
-                        Text("Expires: \(expirationDate, formatter: itemDateFormatter)")
-                            .font(.caption)
-                            .foregroundColor(item.isExpiringSoon ? .orange : .secondary)
-                    }
+                        .foregroundColor(isExpiringSoon(date: expirationDate) ? .orange : .gray)
                 }
             }
             
             Spacer()
             
-            Text(item.formattedPrice)
-                .fontWeight(.medium)
+            
+            // Price display
+            Text(String(format: "$%.2f", item.price))
+                .font(.system(size: 16, weight: .semibold))
+                .frame(minWidth: 60)
+                .foregroundColor(.blue.opacity(0.8))
         }
+        .padding(.vertical, 4)
     }
     
-    private let itemDateFormatter: DateFormatter = {
+    // Date formatter for expiration dates
+    private var dateFormatter: DateFormatter {
         let formatter = DateFormatter()
         formatter.dateStyle = .short
         formatter.timeStyle = .none
         return formatter
-    }()
+    }
+    
+    // Check if item is expiring within 3 days
+    private func isExpiringSoon(date: Date) -> Bool {
+        let thresholdDays: Double = 3
+        return date.timeIntervalSinceNow <= (thresholdDays * 24 * 60 * 60)
+    }
+    
+    // Toggle availability status
+    private func toggleItemStatus() {
+        withAnimation {
+            item.isAvailable.toggle()
+            
+            do {
+                try viewContext.save()
+            } catch {
+                print("Error toggling item status: \(error)")
+            }
+        }
+    }
+    
+    // Increment quantity
+    private func incrementQuantity() {
+        withAnimation {
+            item.quantity += 1
+            
+            do {
+                try viewContext.save()
+            } catch {
+                print("Error incrementing quantity: \(error)")
+            }
+        }
+    }
+    
+    // Decrement quantity (minimum of 1)
+    private func decrementQuantity() {
+        withAnimation {
+            if item.quantity > 1 {
+                item.quantity -= 1
+                
+                do {
+                    try viewContext.save()
+                } catch {
+                    print("Error decrementing quantity: \(error)")
+                }
+            }
+        }
+    }
+}
+
+// MARK: - RowWithNavigation
+
+struct RowWithNavigation: View {
+    @Environment(\.managedObjectContext) private var viewContext
+    @ObservedObject var item: GroceryItem
+    var updateParent: () -> Void
+    
+    var body: some View {
+        NavigationLink(destination: ItemDetailViewWrapper(item: item, updateParent: updateParent)) {
+            ItemRowView(item: item)
+                .environment(\.managedObjectContext, viewContext)
+                .onChange(of: item.quantity) { oldValue, newValue in
+                    // Update the view when quantity changes
+                    updateParent()
+                }
+        }
+        .buttonStyle(PlainButtonStyle()) // This helps with button tap propagation
+    }
+}
+
+
+// MARK: - Wrapper Views
+
+struct ItemDetailViewWrapper: View {
+    @ObservedObject var item: GroceryItem
+    var updateParent: () -> Void
+    
+    var body: some View {
+        ItemDetailView(item: item)
+            .onDisappear {
+                // When the detail view is dismissed, update the parent
+                updateParent()
+            }
+    }
 }
