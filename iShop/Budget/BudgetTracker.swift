@@ -151,11 +151,12 @@ struct BudgetTracker: View {
     @State private var refreshID = UUID()
     @State private var allLists: [GroceryList] = []
     
-    // Color theme
-    private var accentColor: Color {
-        Color.blue
-    }
+    // Fixed color palette to ensure consistency
+    private let categoryColors: [Color] = [
+        .blue, .purple, .orange, .green, .pink, .red, .yellow, .teal
+    ]
     
+    // Color theme
     private var cardBackgroundColor: Color {
         colorScheme == .dark ? Color(UIColor.systemGray6) : Color.white
     }
@@ -182,16 +183,12 @@ struct BudgetTracker: View {
     }
     
     // Group spending by category (in this case, by list)
-    // FIXED: Now properly combines lists with identical names using a Dictionary
     var spendingByList: [(name: String, amount: Double, transactions: Int)] {
-        // First, extract all the lists in the filtered date range
-        let filteredLists = dateFilteredLists
-        
         // Create a dictionary to combine data for lists with the same name
         var combinedData: [String: (amount: Double, transactions: Int)] = [:]
         
         // Iterate through each list and aggregate data by name
-        for list in filteredLists {
+        for list in dateFilteredLists {
             let name = list.wrappedName
             let amount = list.totalSpending
             let transactions = list.itemsArray.count
@@ -216,15 +213,11 @@ struct BudgetTracker: View {
         return result.sorted { $0.amount > $1.amount }
     }
     
-    // Pie chart data with colors
+    // Pie chart data with colors - consistent mapping
     var pieChartData: [(name: String, amount: Double, color: Color)] {
-        let colors: [Color] = [
-            .blue, .purple, .orange, .green, .pink, .red, .yellow, .teal
-        ]
-        
         return spendingByList.enumerated().map { index, item in
-            let colorIndex = index % colors.count
-            return (name: item.name, amount: item.amount, color: colors[colorIndex])
+            let colorIndex = index % categoryColors.count
+            return (name: item.name, amount: item.amount, color: categoryColors[colorIndex])
         }
     }
     
@@ -295,18 +288,8 @@ struct BudgetTracker: View {
                     
                     // Summary card with pie chart
                     VStack(alignment: .leading, spacing: 16) {
-                        HStack {
-                            Label("Spending Summary", systemImage: "chart.pie.fill")
-                                .font(.headline)
-                                
-                            Spacer()
-                                
-                            // Add refresh button
-//                            Button(action: loadData) {
-//                                Image(systemName: "arrow.clockwise")
-//                                    .foregroundColor(.blue)
-//                            }
-                        }
+                        Label("Spending Summary", systemImage: "chart.pie.fill")
+                            .font(.headline)
                         
                         if !spendingByList.isEmpty {
                             PieChartView(
@@ -378,15 +361,16 @@ struct BudgetTracker: View {
                                 .frame(maxWidth: .infinity, minHeight: 100)
                                 .multilineTextAlignment(.center)
                         } else {
-                            // Use a ForEach with the name as the identifier to ensure uniqueness
-                            ForEach(spendingByList, id: \.name) { item in
+                            // Use the same index-based approach for colors as in pieChartData
+                            ForEach(Array(spendingByList.enumerated()), id: \.element.name) { index, item in
                                 VStack {
-                                    if spendingByList.first?.name != item.name {
+                                    if index > 0 {
                                         Divider()
                                     }
                                     
-                                    // Find the matching color for this item
-                                    let color = pieChartData.first(where: { $0.name == item.name })?.color ?? .gray
+                                    // Use the same color assignment logic as the pie chart
+                                    let colorIndex = index % categoryColors.count
+                                    let color = categoryColors[colorIndex]
                                     
                                     CategoryRow(
                                         name: item.name,
@@ -410,7 +394,21 @@ struct BudgetTracker: View {
                 .padding(.vertical)
                 .id(refreshID) // Force view refresh
             }
-            .navigationTitle("Budget Tracker")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .principal) {
+                    Text("Budget Tracker")
+                        .font(.headline)
+                        .foregroundColor(.primary)
+                }
+                
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button(action: loadData) {
+                        Image(systemName: "arrow.clockwise")
+                            .foregroundColor(.blue)
+                    }
+                }
+            }
             .sheet(isPresented: $showingDatePicker) {
                 DateRangePickerView(
                     startDate: $startDate,
@@ -434,13 +432,6 @@ struct BudgetTracker: View {
                 // Then load fresh data after a small delay
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                     loadData()
-                }
-            }
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button(action: loadData) {
-                        Label("Refresh", systemImage: "arrow.clockwise")
-                    }
                 }
             }
         }

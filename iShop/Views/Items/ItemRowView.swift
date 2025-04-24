@@ -32,12 +32,11 @@ struct ItemRowView: View {
             
             Spacer()
             
-            
             // Price display
             Text(String(format: "$%.2f", item.price))
                 .font(.system(size: 16, weight: .semibold))
                 .frame(minWidth: 60)
-                .foregroundColor(.blue.opacity(0.8))
+                .foregroundColor(.black.opacity(0.8))
         }
         .padding(.vertical, 4)
     }
