@@ -1,4 +1,4 @@
-# iShop
+# iShop - Inventory and Budget Management App for Groceries
 
 ## 📱 Overview
 
