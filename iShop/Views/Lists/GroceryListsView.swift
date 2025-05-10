@@ -1,12 +1,13 @@
 import SwiftUI
 
-// Make GroceryList conform to Identifiable
+//MARK: - Grocery List Extension
 extension GroceryList: Identifiable {
     public var id: UUID {
         groceryListId ?? UUID()
     }
 }
 
+//MARK: - Grocery List View
 struct GroceryListsView: View {
     @Environment(\.managedObjectContext) private var viewContext
     
@@ -38,7 +39,6 @@ struct GroceryListsView: View {
         !searchText.isEmpty && groceryLists.isEmpty
     }
     
-    // Pre-computed grouped lists
     private var groupedLists: [DateSection: [GroceryList]] {
         groupListsByDateSection()
     }
@@ -50,7 +50,6 @@ struct GroceryListsView: View {
                 SearchBar(text: $searchText)
                     .padding(.horizontal)
                 
-                // Content view - extracted to reduce complexity
                 GroceryListContentView(
                     shouldShowNotFoundMessage: shouldShowNotFoundMessage,
                     groupedLists: groupedLists,
@@ -72,7 +71,6 @@ struct GroceryListsView: View {
                 }
             }
             
-            // Display this when no list is selected (on larger devices)
             Text("Select a grocery list or create a new one.")
                 .font(.title2)
                 .foregroundColor(.secondary)
@@ -82,13 +80,12 @@ struct GroceryListsView: View {
         }
     }
     
-    // MARK: - Helper Methods
-    
+    // MARK: - Update Fetch Request
     private func updateFetchRequest() {
         groceryLists.nsPredicate = groceryListsPredicate
     }
     
-    // Group lists by date sections - simplified
+    // Group lists by date sections
     private func groupListsByDateSection() -> [DateSection: [GroceryList]] {
         let calendar = Calendar.current
         let now = Date()
@@ -98,7 +95,6 @@ struct GroceryListsView: View {
         
         var sectionsDict: [DateSection: [GroceryList]] = [:]
         
-        // Initialize empty arrays for each section
         for section in DateSection.allCases {
             sectionsDict[section] = []
         }
@@ -150,9 +146,7 @@ struct GroceryListsView: View {
     }
 }
 
-// MARK: - Extracted Views
-
-// Extracted content view to reduce complexity in the main view
+// MARK: - Grocery List Content View
 struct GroceryListContentView: View {
     let shouldShowNotFoundMessage: Bool
     let groupedLists: [GroceryListsView.DateSection: [GroceryList]]
@@ -189,7 +183,7 @@ struct NotFoundView: View {
     }
 }
 
-// View for list sections
+// MARK: - Views for list section
 struct GroceryListSectionsView: View {
     let groupedLists: [GroceryListsView.DateSection: [GroceryList]]
     let onDelete: ([GroceryList], IndexSet) -> Void
@@ -212,7 +206,7 @@ struct GroceryListSectionsView: View {
     }
 }
 
-// View for individual list row
+// MARK: - Individual Row
 struct GroceryListRow: View {
     // Change from let to @ObservedObject to make it reactive to changes
     @ObservedObject var list: GroceryList
@@ -239,8 +233,6 @@ struct GroceryListRow: View {
                         .foregroundColor(.secondary)
                     
                     Spacer()
-                    
-                    // Use the computed property instead of direct access
                     Text(totalSpending)
                         .font(.subheadline)
                         .foregroundColor(.secondary)
@@ -250,7 +242,6 @@ struct GroceryListRow: View {
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
-            // Add an ID to force view refresh when items change
             .id("list-\(list.id)-items-\(itemCount)-total-\(totalSpending)")
         }
     }
@@ -264,7 +255,7 @@ struct GroceryListRow: View {
     }
 }
 
-// Custom SearchBar view
+// MARK: - Search Bar
 struct SearchBar: View {
     @Binding var text: String
     

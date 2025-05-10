@@ -1,6 +1,7 @@
 import SwiftUI
 import Combine
 
+//MARK: - iShop App
 @main
 struct iShopApp: App {
     let persistenceController = PersistenceController.shared
@@ -51,7 +52,7 @@ struct iShopApp: App {
     }
 }
 
-
+//MARK: - AppState
 class AppState: ObservableObject {
     @Published var dataChanged = UUID()
     private var cancellables = Set<AnyCancellable>()

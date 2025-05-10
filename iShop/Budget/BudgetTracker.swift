@@ -2,6 +2,7 @@ import SwiftUI
 import CoreData
 import Combine
 
+//MARK: - PieSlice
 struct PieSlice: Shape {
     let startAngle: Double
     let endAngle: Double
@@ -23,6 +24,7 @@ struct PieSlice: Shape {
     }
 }
 
+//MARK: - Pie Chart View
 struct PieChartView: View {
     var slices: [(name: String, amount: Double, color: Color)]
     var total: Double
@@ -63,6 +65,7 @@ struct PieChartView: View {
     }
 }
 
+//MARK: - Category Row
 struct CategoryRow: View {
     var name: String
     var amount: Double
@@ -93,6 +96,7 @@ struct CategoryRow: View {
     }
 }
 
+//MARK: - Budget Tracker View Model
 class BudgetTrackerViewModel: ObservableObject {
     @Published var startDate = Calendar.current.date(byAdding: .day, value: -30, to: Date()) ?? Date()
     @Published var endDate = Date()
@@ -138,7 +142,7 @@ class BudgetTrackerViewModel: ObservableObject {
     }
 }
 
-
+//MARK: - Budget Tracker View
 struct BudgetTracker: View {
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.managedObjectContext) private var viewContext
@@ -153,10 +157,9 @@ struct BudgetTracker: View {
     
     // Fixed color palette to ensure consistency
     private let categoryColors: [Color] = [
-        .blue, .purple, .orange, .green, .pink, .red, .yellow, .teal
+        .blue, .purple, .orange, .green, .pink, .yellow, .teal, .red
     ]
     
-    // Color theme
     private var cardBackgroundColor: Color {
         colorScheme == .dark ? Color(UIColor.systemGray6) : Color.white
     }
@@ -165,7 +168,6 @@ struct BudgetTracker: View {
         colorScheme == .dark ? Color.black.opacity(0.3) : Color.black.opacity(0.1)
     }
     
-    // Computed properties
     var dateFilteredLists: [GroceryList] {
         // Use calendar for more reliable date comparison
         let calendar = Calendar.current
@@ -182,9 +184,7 @@ struct BudgetTracker: View {
         return dateFilteredLists.reduce(0) { $0 + $1.totalSpending }
     }
     
-    // Group spending by category (in this case, by list)
     var spendingByList: [(name: String, amount: Double, transactions: Int)] {
-        // Create a dictionary to combine data for lists with the same name
         var combinedData: [String: (amount: Double, transactions: Int)] = [:]
         
         // Iterate through each list and aggregate data by name
@@ -361,14 +361,12 @@ struct BudgetTracker: View {
                                 .frame(maxWidth: .infinity, minHeight: 100)
                                 .multilineTextAlignment(.center)
                         } else {
-                            // Use the same index-based approach for colors as in pieChartData
                             ForEach(Array(spendingByList.enumerated()), id: \.element.name) { index, item in
                                 VStack {
                                     if index > 0 {
                                         Divider()
                                     }
                                     
-                                    // Use the same color assignment logic as the pie chart
                                     let colorIndex = index % categoryColors.count
                                     let color = categoryColors[colorIndex]
                                     
@@ -388,19 +386,19 @@ struct BudgetTracker: View {
                     .shadow(color: shadowColor, radius: 4, x: 0, y: 2)
                     .padding(.horizontal)
                     
-                    // Bottom spacer
                     Spacer(minLength: 20)
                 }
                 .padding(.vertical)
-                .id(refreshID) // Force view refresh
+                .id(refreshID)
             }
-            .navigationBarTitleDisplayMode(.inline)
+            .navigationTitle("Budget Tracker")
+            .navigationBarTitleDisplayMode(.large)
             .toolbar {
-                ToolbarItem(placement: .principal) {
-                    Text("Budget Tracker")
-                        .font(.headline)
-                        .foregroundColor(.primary)
-                }
+//                ToolbarItem(placement: .principal) {
+//                    Text("Budget Tracker")
+//                        .font(.headline)
+//                        .foregroundColor(.primary)
+//                }
                 
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button(action: loadData) {
@@ -415,21 +413,17 @@ struct BudgetTracker: View {
                     endDate: $endDate,
                     isPresented: $showingDatePicker,
                     onDismiss: {
-                        // Refresh when date range changes
                         loadData()
                     }
                 )
             }
             .background(Color(.systemGroupedBackground).ignoresSafeArea())
             .onAppear {
-                // Load data when view appears
                 loadData()
             }
             .onChange(of: appState.dataChanged) { _, _ in
-                // First, reset Core Data context cache
                 viewContext.refreshAllObjects()
                 
-                // Then load fresh data after a small delay
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                     loadData()
                 }

@@ -1,5 +1,6 @@
 import SwiftUI
 
+//MARK: - Batch Update View
 struct BatchUpdateView: View {
     @Environment(\.presentationMode) private var presentationMode
     @Environment(\.managedObjectContext) private var viewContext
@@ -9,12 +10,10 @@ struct BatchUpdateView: View {
     @State private var items: [GroceryItem]
     @State private var isEdited = false
     
-    // Initialize with sorted items from the grocery list
     init(groceryList: GroceryList, updateParent: @escaping () -> Void) {
         self.groceryList = groceryList
         self.updateParent = updateParent
         
-        // Initialize state with a sorted copy of the grocery list items
         _items = State(initialValue: groceryList.itemsArray.sorted { $0.wrappedName < $1.wrappedName })
     }
     
@@ -72,11 +71,8 @@ struct BatchUpdateView: View {
         }
     }
     
-    // Toggle availability for all items
     private func toggleAllAvailability() {
         withAnimation {
-            // Determine if we should mark all as available or unavailable
-            // If all are available, mark all unavailable, otherwise mark all available
             let allAvailable = !items.contains { !$0.isAvailable }
             
             for index in items.indices {
@@ -87,7 +83,6 @@ struct BatchUpdateView: View {
         }
     }
     
-    // Save all changes to Core Data
     private func saveChanges() {
         do {
             try viewContext.save()
@@ -99,14 +94,13 @@ struct BatchUpdateView: View {
     }
 }
 
-// Row component for the batch update view
+//MARK: - Batch Update Row
 struct BatchUpdateRow: View {
     @Binding var item: GroceryItem
     var updateEdited: () -> Void
     
     var body: some View {
         HStack(spacing: 12) {
-            // Availability toggle
             Button(action: toggleAvailability) {
                 Image(systemName: item.isAvailable ? "checkmark.circle.fill" : "circle")
                     .foregroundColor(item.isAvailable ? .green : .gray)
@@ -114,16 +108,13 @@ struct BatchUpdateRow: View {
             }
             .buttonStyle(BorderlessButtonStyle())
             
-            // Item name
             Text(item.wrappedName)
                 .fontWeight(.medium)
                 .strikethrough(!item.isAvailable, color: .red)
             
             Spacer()
             
-            // Quantity controls
             HStack(spacing: 8) {
-                // Decrement button
                 Button(action: decrementQuantity) {
                     ZStack {
                         Circle()
@@ -138,12 +129,10 @@ struct BatchUpdateRow: View {
                 .buttonStyle(BorderlessButtonStyle())
                 .disabled(item.quantity <= 1)
                 
-                // Quantity display
                 Text("\(Int(item.quantity))")
                     .frame(minWidth: 24)
                     .font(.system(size: 16, weight: .medium))
                 
-                // Increment button
                 Button(action: incrementQuantity) {
                     ZStack {
                         Circle()
@@ -161,7 +150,6 @@ struct BatchUpdateRow: View {
         .padding(.vertical, 4)
     }
     
-    // Toggle availability
     private func toggleAvailability() {
         withAnimation {
             item.isAvailable.toggle()
@@ -169,7 +157,6 @@ struct BatchUpdateRow: View {
         }
     }
     
-    // Increment quantity
     private func incrementQuantity() {
         withAnimation {
             item.quantity += 1
@@ -177,7 +164,6 @@ struct BatchUpdateRow: View {
         }
     }
     
-    // Decrement quantity
     private func decrementQuantity() {
         withAnimation {
             if item.quantity > 1 {

@@ -6,7 +6,6 @@ struct DateRangePickerView: View {
     @Binding var isPresented: Bool
     var onDismiss: (() -> Void)? = nil
     
-    // Temporary dates for the picker
     @State private var tempStartDate: Date
     @State private var tempEndDate: Date
     
@@ -16,7 +15,6 @@ struct DateRangePickerView: View {
         self._isPresented = isPresented
         self.onDismiss = onDismiss
         
-        // Initialize temporary dates with current values
         self._tempStartDate = State(initialValue: startDate.wrappedValue)
         self._tempEndDate = State(initialValue: endDate.wrappedValue)
     }

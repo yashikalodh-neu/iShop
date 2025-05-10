@@ -1,5 +1,6 @@
 import SwiftUI
 
+//MARK: - Item Detail View
 struct ItemDetailView: View {
     @Environment(\.managedObjectContext) private var viewContext
     @Environment(\.presentationMode) var presentationMode
@@ -14,7 +15,6 @@ struct ItemDetailView: View {
     @State private var expirationDate: Date?
     @State private var isLowStockAlertEnabled: Bool
     
-    // DateFormatter for display
     private let dateFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.dateStyle = .medium

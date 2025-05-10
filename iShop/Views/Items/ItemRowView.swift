@@ -1,7 +1,6 @@
 import SwiftUI
 
 // MARK: - ItemRowView
-
 struct ItemRowView: View {
     @Environment(\.managedObjectContext) private var viewContext
     @ObservedObject var item: GroceryItem
@@ -32,6 +31,12 @@ struct ItemRowView: View {
             
             Spacer()
             
+            // Quantity with low stock indicator
+            Text("Qty: \(item.quantity)")
+                .font(.system(size: 14))
+                .foregroundColor(isLowStock(item: item) ? .red : .primary)
+                .padding(.horizontal, 8)
+            
             // Price display
             Text(String(format: "$%.2f", item.price))
                 .font(.system(size: 16, weight: .semibold))
@@ -55,7 +60,11 @@ struct ItemRowView: View {
         return date.timeIntervalSinceNow <= (thresholdDays * 24 * 60 * 60)
     }
     
-    // Toggle availability status
+    // Check if quantity is below the threshold AND low stock alert is enabled
+    private func isLowStock(item: GroceryItem) -> Bool {
+        return item.quantityThreshold > 0 && item.quantity <= item.quantityThreshold
+    }
+    
     private func toggleItemStatus() {
         withAnimation {
             item.isAvailable.toggle()
@@ -68,7 +77,6 @@ struct ItemRowView: View {
         }
     }
     
-    // Increment quantity
     private func incrementQuantity() {
         withAnimation {
             item.quantity += 1
@@ -81,7 +89,6 @@ struct ItemRowView: View {
         }
     }
     
-    // Decrement quantity (minimum of 1)
     private func decrementQuantity() {
         withAnimation {
             if item.quantity > 1 {
@@ -98,7 +105,6 @@ struct ItemRowView: View {
 }
 
 // MARK: - RowWithNavigation
-
 struct RowWithNavigation: View {
     @Environment(\.managedObjectContext) private var viewContext
     @ObservedObject var item: GroceryItem
@@ -119,7 +125,6 @@ struct RowWithNavigation: View {
 
 
 // MARK: - Wrapper Views
-
 struct ItemDetailViewWrapper: View {
     @ObservedObject var item: GroceryItem
     var updateParent: () -> Void
@@ -127,7 +132,6 @@ struct ItemDetailViewWrapper: View {
     var body: some View {
         ItemDetailView(item: item)
             .onDisappear {
-                // When the detail view is dismissed, update the parent
                 updateParent()
             }
     }

@@ -1,5 +1,6 @@
 import SwiftUI
 
+//MARK: - Add item View
 struct AddItemView: View {
     @Environment(\.managedObjectContext) private var viewContext
     @Environment(\.presentationMode) var presentationMode
@@ -38,12 +39,21 @@ struct AddItemView: View {
                     
                     TextField("Name", text: $name)
                     
-                    Stepper("Quantity: \(quantity)", value: $quantity, in: 1...999)
+                    // Modified Stepper with conditional text color - only red when low stock alert is enabled
+                    HStack {
+                        Text("Quantity:")
+                        Spacer()
+                        Text("\(quantity)")
+                            .foregroundColor(isLowStockAlertEnabled && quantity <= quantityThreshold ? .red : .primary)
+                        Stepper("", value: $quantity, in: 0...999)
+                            .labelsHidden()
+                    }
                     
                     Toggle("Enable Low Stock Alert", isOn: $isLowStockAlertEnabled)
                     
                     if isLowStockAlertEnabled {
                         Stepper("Low Stock Alert: \(quantityThreshold)", value: $quantityThreshold, in: 1...100)
+                            .foregroundColor(quantity <= quantityThreshold ? .red : .primary)
                     }
                     
                     HStack {
@@ -81,6 +91,7 @@ struct AddItemView: View {
         }
     }
     
+    //MARK: - Save itwm
     private func saveItem() {
         withAnimation {
             let newItem = GroceryItem(context: viewContext)
@@ -123,7 +134,6 @@ struct AddItemView: View {
     }
 }
 
-// Wrapper view to ensure the updateParent callback is properly passed
 struct AddItemViewWrapper: View {
     @Environment(\.presentationMode) var presentationMode
     var groceryList: GroceryList

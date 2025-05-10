@@ -1,5 +1,6 @@
 import SwiftUI
 
+//MARK: - SplashScreen
 struct SplashScreen: View {
     var body: some View {
         ZStack {
@@ -15,7 +16,7 @@ struct SplashScreen: View {
                 
                 Text("iShop")
                     .font(.custom("HelveticaNeue-Bold", size: 48))
-                    .foregroundColor(Color(hex: "1C5D1C")) 
+                    .foregroundColor(Color(hex: "1C5D1C"))
             }
         }
     }

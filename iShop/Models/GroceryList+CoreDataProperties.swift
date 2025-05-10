@@ -1,4 +1,11 @@
-import Foundation
+//
+//  GroceryList+CoreDataProperties.swift
+//  iShop
+//
+//  Created by Yashika Lodh on 4/5/25.
+//
+//import Foundation
+
 import CoreData
 
 extension GroceryList {
@@ -11,7 +18,6 @@ extension GroceryList {
     @NSManaged public var dateCreated: Date?
     @NSManaged public var items: NSSet?
 
-    // Convenience calculated properties
     public var wrappedId: UUID {
         groceryListId ?? UUID()
     }
@@ -28,10 +34,18 @@ extension GroceryList {
     }
 
     // Fixed to multiply price by quantity
+//    public var totalSpending: Double {
+//        let set = items as? Set<GroceryItem> ?? []
+//        return set.reduce(0) { total, item in
+//            return total + (item.price * Double(item.quantity))
+//        }
+//    }
+    
+    //Quantity independent of price
     public var totalSpending: Double {
         let set = items as? Set<GroceryItem> ?? []
         return set.reduce(0) { total, item in
-            return total + (item.price * Double(item.quantity))
+            return total + item.price
         }
     }
 

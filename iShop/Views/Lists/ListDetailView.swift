@@ -1,7 +1,6 @@
 import SwiftUI
 
 // MARK: - ListDetailView
-
 struct ListDetailView: View {
     @Environment(\.managedObjectContext) private var viewContext
     @ObservedObject var groceryList: GroceryList
@@ -11,7 +10,6 @@ struct ListDetailView: View {
     @State private var showingBatchUpdate = false
     @State private var sortOption = SortOption.nameAscending
     
-    // Add a refreshID to force UI updates
     @State private var refreshID = UUID()
     
     enum SortOption {
@@ -45,7 +43,6 @@ struct ListDetailView: View {
     
     var body: some View {
         List {
-            // Summary Section with enhanced UI
             Section {
                 VStack(spacing: 16) {
                     // Total spending card
@@ -66,7 +63,6 @@ struct ListDetailView: View {
                     }
                     .padding(.vertical, 8)
                     
-                    // Stats cards in a 2-column grid
                     HStack(spacing: 16) {
                         // Available items
                         VStack(alignment: .leading, spacing: 4) {
@@ -113,7 +109,6 @@ struct ListDetailView: View {
                     .font(.headline)
             }
             
-            // Items Section with improved header
             Section {
                 ForEach(sortedItems) { item in
                     RowWithNavigation(item: item, updateParent: updateView)
@@ -154,7 +149,7 @@ struct ListDetailView: View {
                 }
             }
         }
-        .id(refreshID) // Force view to refresh when refreshID changes
+        .id(refreshID)
         .listStyle(InsetGroupedListStyle())
         .navigationTitle(groceryList.wrappedName)
         .toolbar {
@@ -179,7 +174,7 @@ struct ListDetailView: View {
         .sheet(isPresented: $showingBatchUpdate) {
             BatchUpdateView(groceryList: groceryList, updateParent: updateView)
         }
-        // Action sheet for sorting options
+        // Actions for sorting options
         .actionSheet(isPresented: $showingSortOptions) {
             ActionSheet(title: Text("Sort Items"), buttons: [
                 .default(Text("Name (A-Z)")) { sortOption = .nameAscending },
@@ -190,42 +185,34 @@ struct ListDetailView: View {
                 .cancel()
             ])
         }
-        // Add a notification observer to refresh when context changes
         .onReceive(NotificationCenter.default.publisher(for: .NSManagedObjectContextDidSave)) { _ in
             updateView()
         }
     }
     
-    // Function to update the view when items change
     func updateView() {
-        // Generate a new UUID to force view refresh
         refreshID = UUID()
         
-        // Also reload the grocery list object from the context if needed
-        // This ensures we have the latest data from Core Data
         viewContext.refresh(groceryList, mergeChanges: true)
     }
     
+    // MARK: - Delete Items
     private func deleteItems(offsets: IndexSet) {
         withAnimation {
             let itemsToDelete = offsets.map { sortedItems[$0] }
             
-            // Cancel notifications for deleted items
             itemsToDelete.forEach { item in
                 if let id = item.groceryItemId {
                     NotificationManager.shared.cancelAllNotifications(for: id)
                 }
             }
             
-            // Delete the items
             itemsToDelete.forEach(viewContext.delete)
             
             do {
                 try viewContext.save()
-                // Update the view after deleting items
                 updateView()
             } catch {
-                // Handle the Core Data error
                 print("Error deleting items: \(error)")
             }
         }
